@@ -42,11 +42,15 @@ pico_set_program_version(interruption_RP2040 "0.1")
 
 # Modify the below lines to enable/disable output over UART/USB
 pico_enable_stdio_uart(interruption_RP2040 0)
-pico_enable_stdio_usb(interruption_RP2040 0)
+pico_enable_stdio_usb(interruption_RP2040 1)
+
+pico_generate_pio_header(interruption_RP2040 ${CMAKE_CURRENT_LIST_DIR}/pio_matrix.pio)
 
 # Add the standard library to the build
-target_link_libraries(interruption_RP2040
-        pico_stdlib)
+target_link_libraries(interruption_RP2040 
+        pico_stdlib
+        hardware_pio
+        )
 
 # Add the standard include files to the build
 target_include_directories(interruption_RP2040 PRIVATE
@@ -55,7 +59,7 @@ target_include_directories(interruption_RP2040 PRIVATE
 
 # Add any user requested libraries
 target_link_libraries(interruption_RP2040 
-        
+
         )
 
 pico_add_extra_outputs(interruption_RP2040)
