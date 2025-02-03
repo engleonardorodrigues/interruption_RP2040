@@ -16,9 +16,18 @@
 
 #define WS2812_PIN    7
 
+volatile int numero_atual = 0;
+volatile bool atualizar_display = false;
+volatile uint32_t valor_led; 
+volatile PIO pio; 
+volatile uint sm; 
+volatile double r; 
+volatile double g; 
+volatile double b;
+
 /******************************************MOSTRAR NÚMEROS 0 A 9************************************/
 
-double matriz_numeros[10][5][5] =  { 
+int matriz_numeros[10][5][5] =  { 
 
     // Número 0
     {1.0, 1.0, 1.0, 1.0, 1.0,
@@ -31,49 +40,49 @@ double matriz_numeros[10][5][5] =  {
     {1.0, 1.0, 1.0, 1.0, 1.0,
      0.0, 0.0, 1.0, 0.0, 0.0, 
      0.0, 0.0, 1.0, 0.0, 0.0,
-     0.0, 0.0, 1.0, 1.0, 0.0,
+     0.0, 1.0, 1.0, 0.0, 0.0,
      0.0, 0.0, 1.0, 0.0, 0.0},
 
     // Número 2
     {1.0, 1.0, 1.0, 1.0, 1.0,
-     0.0, 0.0, 0.0, 0.0, 1.0, 
+     1.0, 0.0, 0.0, 0.0, 0.0, 
      1.0, 1.0, 1.0, 1.0, 1.0,
-     1.0, 0.0, 0.0, 0.0, 0.0,
+     0.0, 0.0, 0.0, 0.0, 1.0,
      1.0, 1.0, 1.0, 1.0, 1.0},
 
     // Número 3
     {1.0, 1.0, 1.0, 1.0, 1.0,
-     1.0, 0.0, 0.0, 0.0, 0.0, 
+     0.0, 0.0, 0.0, 0.0, 1.0, 
      1.0, 1.0, 1.0, 1.0, 1.0,
-     1.0, 0.0, 0.0, 0.0, 0.0,
+     0.0, 0.0, 0.0, 0.0, 1.0,
      1.0, 1.0, 1.0, 1.0, 1.0},
 
     // Número 4
     {1.0, 0.0, 0.0, 0.0, 0.0,
-     1.0, 0.0, 0.0, 0.0, 0.0, 
+     0.0, 0.0, 0.0, 0.0, 1.0, 
      1.0, 1.0, 1.0, 1.0, 1.0,
      1.0, 0.0, 0.0, 0.0, 1.0,
      1.0, 0.0, 0.0, 0.0, 1.0},
 
     // Número 5
     {1.0, 1.0, 1.0, 1.0, 1.0,
-     1.0, 0.0, 0.0, 0.0, 0.0, 
+     0.0, 0.0, 0.0, 0.0, 1.0, 
      1.0, 1.0, 1.0, 1.0, 1.0,
-     0.0, 0.0, 0.0, 0.0, 1.0,
+     1.0, 0.0, 0.0, 0.0, 0.0,
      1.0, 1.0, 1.0, 1.0, 1.0},
 
     // Número 6
     {1.0, 1.0, 1.0, 1.0, 1.0,
      1.0, 0.0, 0.0, 0.0, 1.0, 
      1.0, 1.0, 1.0, 1.0, 1.0,
-     0.0, 0.0, 0.0, 0.0, 1.0,
+     1.0, 0.0, 0.0, 0.0, 0.0,
      1.0, 1.0, 1.0, 1.0, 1.0},
 
     // Número 7
     {1.0, 0.0, 0.0, 0.0, 0.0,
-     1.0, 0.0, 0.0, 0.0, 0.0, 
+     0.0, 0.0, 0.0, 0.0, 1.0, 
      1.0, 0.0, 0.0, 0.0, 0.0,
-     1.0, 0.0, 0.0, 0.0, 0.0,
+     0.0, 0.0, 0.0, 0.0, 1.0,
      1.0, 1.0, 1.0, 1.0, 1.0},
 
     // Número 8
@@ -85,90 +94,83 @@ double matriz_numeros[10][5][5] =  {
 
     // Número 9
     {1.0, 1.0, 1.0, 1.0, 1.0,
-     1.0, 0.0, 0.0, 0.0, 0.0, 
+     0.0, 0.0, 0.0, 0.0, 1.0, 
      1.0, 1.0, 1.0, 1.0, 1.0,
      1.0, 0.0, 0.0, 0.0, 1.0,
      1.0, 1.0, 1.0, 1.0, 1.0},
 };
 
-void number_animation(uint32_t valor_led, PIO pio, uint sm, double r, double g, double b)
-{
-  int num_matrizes = sizeof(matriz_numeros) / sizeof(matriz_numeros[0]);
 
-for (int frame = 0; frame < num_matrizes; frame++) {
-    desenho_pio(matriz_numeros[frame], valor_led, pio, sm, r, g, b);
-    sleep_ms(3000); // Intervalo entre quadros
-}
-}
-
-//funcao para mapear os leds da matriz
-int map_led_index(int row, int col, int width) {
-    if (row % 2 == 0) {
-        // Linha par (esquerda para direita)
-        return row * width + col;
-    } else {
-        // Linha ímpar (direita para esquerda)
-        return row * width + (width - 1 - col);
+// Callback único para todos os pinos
+void botoes_irq_handler(uint gpio, uint32_t events) {
+     
+    if (gpio == BOTAO_A && gpio_get(BOTAO_A) == 0) {
+        numero_atual = (numero_atual + 1) % 10;
+        atualizar_display = true;
+    }
+    else if (gpio == BOTAO_B && gpio_get(BOTAO_B) == 0) {
+        numero_atual = (numero_atual - 1 + 10) % 10;
+        atualizar_display = true;
     }
 }
 
-//rotina para definição da intensidade de cores do led
-uint32_t matrix_rgb(double b, double r, double g)
-{
-  unsigned char R, G, B;
-  R = r * 255;
-  G = g * 255;
-  B = b * 255;
-  return (G << 24) | (R << 16) | (B << 8);
+uint32_t matrix_rgb(double b, double r, double g) {
+    unsigned char R, G, B;
+    R = r * 255;
+    G = g * 255;
+    B = b * 255;
+    return (G << 24) | (R << 16) | (B << 8);
 }
 
-//rotina para acionar a matrix de leds - ws2812b
-void desenho_pio(double *matriz_numeros, uint32_t valor_led, PIO pio, uint sm, double r, double g, double b) {
+void desenho_pio(int *matriz_numeros, uint32_t valor_led, PIO pio, uint sm, double r, double g, double b);
+
+void number_animation(uint32_t valor_led, PIO pio, uint sm, double r, double g, double b) {
+    int num_matrizes = sizeof(matriz_numeros) / sizeof(matriz_numeros[0]);
+    for (int frame = 0; frame < num_matrizes; frame++) {
+        desenho_pio((int *)matriz_numeros[frame], valor_led, pio, sm, r, g, b);
+    }
+}
+
+void desenho_pio(int *matriz_numeros, uint32_t valor_led, PIO pio, uint sm, double r, double g, double b) {
     for (int row = 0; row < 5; row++) {
         for (int col = 0; col < 5; col++) {
-            int led_index = map_led_index(row, col, 5);
-            valor_led = matrix_rgb(b = 0.0, r = matriz_numeros[led_index], g = 0.0);
+            int led_index = row * 5 + col;
+            valor_led = matrix_rgb(b, matriz_numeros[led_index], g);
             pio_sm_put_blocking(pio, sm, valor_led);
-            
         }
     }
 }
 
-int main()
-{
-    PIO pio = pio0; 
-    bool ok;
-    uint16_t i;
+int main() {
+    PIO pio = pio0;
     uint32_t valor_led;
-    double r = 0.0, b = 0.0 , g = 0.0;
+    double r = 1.0, g = 0.0, b = 0.0;
+    
+    stdio_init_all();
+    
+    gpio_init(LED_VERMELHO);
+    gpio_set_dir(LED_VERMELHO, GPIO_OUT);
+    
+    gpio_init(BOTAO_A);
+    gpio_set_dir(BOTAO_A, GPIO_IN);
+    gpio_pull_up(BOTAO_A);
+    gpio_set_irq_enabled_with_callback(BOTAO_A, GPIO_IRQ_EDGE_FALL, true, &botoes_irq_handler);
 
-    ok = set_sys_clock_khz(128000, false);
-
-    stdio_init_all();     
-
-    printf("iniciando a transmissão PIO");
-    if (ok) printf("clock set to %ld\n", clock_get_hz(clk_sys));                                                      // Inicializa bibliotecas 
-
-    gpio_init(LED_VERMELHO);                                                    // Inicializa GPIO 13 (Led Vermelho)
-    gpio_init(LED_VERDE);                                                       // Inicializa GPIO 12 (Led Amarelo)
-    gpio_init(LED_AZUL);                                                        // Inicializa GPIO 11 (Led Verde)
-
-    gpio_set_dir(LED_VERMELHO, GPIO_OUT);                                       // Define GPIO 11 como saída
-    gpio_set_dir(LED_AZUL,     GPIO_OUT);                                       // Define GPIO 12 como saída
-    gpio_set_dir(LED_VERDE,    GPIO_OUT);                                       // Define GPIO 13 como saída
-
-    gpio_put(LED_VERMELHO, 0);                                                  // Liga o LED vermelho (estado inicial)
-    gpio_put(LED_AZUL,  0);                                                     // Desliga o LED amarelo
-    gpio_put(LED_VERDE,    0);                                                  // Desliga o LED verde
-
-    //configurações da PIO
+    gpio_init(BOTAO_B);
+    gpio_set_dir(BOTAO_B, GPIO_IN);
+    gpio_pull_up(BOTAO_B);
+    gpio_set_irq_enabled_with_callback(BOTAO_B, GPIO_IRQ_EDGE_FALL, true, &botoes_irq_handler);
+    
     uint offset = pio_add_program(pio, &pio_matrix_program);
     uint sm = pio_claim_unused_sm(pio, true);
     pio_matrix_program_init(pio, sm, offset, WS2812_PIN);
-
-
+    
     while (true) {
-       number_animation(valor_led, pio, sm, r, g, b);
-       
+        
+        if (atualizar_display) {
+            desenho_pio((int *)matriz_numeros[numero_atual], valor_led, pio, sm, r, g, b);
+            atualizar_display = false;
+        }
     }
 }
+
