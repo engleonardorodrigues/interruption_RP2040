@@ -105,14 +105,14 @@
       "id": "text3",
       "top": -96,
       "left": 192,
-      "attrs": { "text": "BOTÃO A" }
+      "attrs": { "text": "BOTÃO A (Incrementa)" }
     },
     {
       "type": "wokwi-text",
       "id": "text4",
       "top": -182.4,
       "left": 192,
-      "attrs": { "text": "BOTÃO B" }
+      "attrs": { "text": "BOTÃO B (Decrementa)" }
     },
     { "type": "wokwi-vcc", "id": "vcc6", "top": 259.96, "left": 96, "attrs": {} }
   ],

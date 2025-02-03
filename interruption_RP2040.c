@@ -16,7 +16,7 @@
 
 #define WS2812_PIN    7
 
-volatile int numero_atual = 0;
+volatile int numero_atual = -1;
 volatile bool atualizar_display = false;
 volatile uint32_t valor_led; 
 volatile PIO pio; 
@@ -24,6 +24,13 @@ volatile uint sm;
 volatile double r; 
 volatile double g; 
 volatile double b;
+
+// Armazena o último tempo em que houve pressionamento detectado
+
+#define DEBOUNCE_DELAY_US  100000
+static uint64_t ultimo_tempo_a = 0;
+static uint64_t ultimo_tempo_b = 0;
+
 
 /******************************************MOSTRAR NÚMEROS 0 A 9************************************/
 
@@ -103,14 +110,22 @@ int matriz_numeros[10][5][5] =  {
 
 // Callback único para todos os pinos
 void botoes_irq_handler(uint gpio, uint32_t events) {
-     
+    uint64_t agora = time_us_64();  // tempo atual em microssegundos
+
     if (gpio == BOTAO_A && gpio_get(BOTAO_A) == 0) {
-        numero_atual = (numero_atual + 1) % 10;
-        atualizar_display = true;
+        // Verifica se tempo atual - ultimo_tempo_a >= DEBOUNCE_DELAY_US
+        if ( (agora - ultimo_tempo_a) >= DEBOUNCE_DELAY_US ) {
+            ultimo_tempo_a = agora;   // atualiza o tempo
+            numero_atual = (numero_atual + 1) % 10;
+            atualizar_display = true;
+        }
     }
     else if (gpio == BOTAO_B && gpio_get(BOTAO_B) == 0) {
-        numero_atual = (numero_atual - 1 + 10) % 10;
-        atualizar_display = true;
+        if ( (agora - ultimo_tempo_b) >= DEBOUNCE_DELAY_US ) {
+            ultimo_tempo_b = agora;
+            numero_atual = (numero_atual - 1 + 10) % 10;
+            atualizar_display = true;
+        }
     }
 }
 
