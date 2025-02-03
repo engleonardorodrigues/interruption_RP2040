@@ -1,3 +1,24 @@
+/*****************************************************************************************************
+ * Título        : Trabalhando com interrupções no Raspberry Pi Pico
+ * Desenvolvedor : Leonardo Rodrigues
+ * Versão        : 1.0.0
+ * 
+ * Descrição:
+ * Este programa implementa um sistema de controle interativo utilizando o Raspberry Pi Pico. O código
+ * permite a manipulação de uma matriz 5x5 de LEDs WS2812, onde os números de 0 a 9 são exibidos. O sistema
+ * responde a interrupções geradas por botões, incrementando ou decrementando o número exibido na matriz.
+ * Além disso, o LED vermelho pisca a 5 Hz continuamente, sem bloquear a execução do programa.
+ * 
+ * Materiais utilizados:
+ * 
+ * 1 - Raspberry Pi Pico
+ * 1 - Matriz 5x5 de LEDs WS2812
+ * 2 - Botões de pressão
+ * 1 - LED RGB (vermelho, verde e azul)
+ * 1 - Resistor de 330 ohms
+ ******************************************************************************************************/
+
+
 #include <stdio.h>
 #include "pico/stdlib.h"
 #include "hardware/irq.h"
@@ -36,7 +57,6 @@ static uint64_t ultimo_toggle_led = 0;
 #define DEBOUNCE_DELAY_US  100000
 static uint64_t ultimo_tempo_a = 0;
 static uint64_t ultimo_tempo_b = 0;
-
 
 /******************************************MOSTRAR NÚMEROS 0 A 9************************************/
 
@@ -113,27 +133,28 @@ int matriz_numeros[10][5][5] =  {
      1.0, 1.0, 1.0, 1.0, 1.0},
 };
 
+/*************************************ROTINA DE INTERRUPÇÃO DOS BOTÕES************************************/
 
-// Callback único para todos os pinos
 void botoes_irq_handler(uint gpio, uint32_t events) {
-    uint64_t agora = time_us_64();  // tempo atual em microssegundos
+    uint64_t tempo_atual = time_us_64();  
 
     if (gpio == BOTAO_A && gpio_get(BOTAO_A) == 0) {
-        // Verifica se tempo atual - ultimo_tempo_a >= DEBOUNCE_DELAY_US
-        if ( (agora - ultimo_tempo_a) >= DEBOUNCE_DELAY_US ) {
-            ultimo_tempo_a = agora;   // atualiza o tempo
+        
+        if ( (tempo_atual - ultimo_tempo_a) >= DEBOUNCE_DELAY_US ) {
+            ultimo_tempo_a = tempo_atual;   // atualiza o tempo
             numero_atual = (numero_atual + 1) % 10;
             atualizar_display = true;
         }
     }
     else if (gpio == BOTAO_B && gpio_get(BOTAO_B) == 0) {
-        if ( (agora - ultimo_tempo_b) >= DEBOUNCE_DELAY_US ) {
-            ultimo_tempo_b = agora;
+        if ( (tempo_atual - ultimo_tempo_b) >= DEBOUNCE_DELAY_US ) {
+            ultimo_tempo_b = tempo_atual;
             numero_atual = (numero_atual - 1 + 10) % 10;
             atualizar_display = true;
         }
     }
 }
+/********************************ROTINA PARA DESENHAR NA MATRIZ DE LED************************************/
 
 uint32_t matrix_rgb(double b, double r, double g) {
     unsigned char R, G, B;
@@ -161,45 +182,51 @@ void desenho_pio(int *matriz_numeros, uint32_t valor_led, PIO pio, uint sm, doub
         }
     }
 }
+/*****************************************ROTINA PRINCIPAL********************************************/
 
 int main() {
-    PIO pio = pio0;
-    uint32_t valor_led;
-    double r = 1.0, g = 0.0, b = 0.0;
-    
+     
     stdio_init_all();
-    
+    // Inicializa LED vermelho
     gpio_init(LED_VERMELHO);
     gpio_set_dir(LED_VERMELHO, GPIO_OUT);
     gpio_put(LED_VERMELHO, 0);
     
+    // Configura Botão A
     gpio_init(BOTAO_A);
     gpio_set_dir(BOTAO_A, GPIO_IN);
     gpio_pull_up(BOTAO_A);
     gpio_set_irq_enabled_with_callback(BOTAO_A, GPIO_IRQ_EDGE_FALL, true, &botoes_irq_handler);
 
+    // Configura Botão B
     gpio_init(BOTAO_B);
     gpio_set_dir(BOTAO_B, GPIO_IN);
     gpio_pull_up(BOTAO_B);
     gpio_set_irq_enabled_with_callback(BOTAO_B, GPIO_IRQ_EDGE_FALL, true, &botoes_irq_handler);
     
+    // Configura PIO para a matriz WS2812
+    PIO pio = pio0;
     uint offset = pio_add_program(pio, &pio_matrix_program);
     uint sm = pio_claim_unused_sm(pio, true);
     pio_matrix_program_init(pio, sm, offset, WS2812_PIN);
     
+    // Ajuste de cor para a matriz
+    double r = 1.0, g = 0.0, b = 0.0;
+    uint32_t valor_led;
+
     // Marca o último toggle do LED como o momento atual
     ultimo_toggle_led = time_us_64();
 
     while (true) {
 
-        // ----- Blink do LED vermelho a 5 Hz sem delay -----
-        uint64_t agora = time_us_64();
-        if ((agora - ultimo_toggle_led) >= LED_BLINK_INTERVAL_US) {
-            ultimo_toggle_led = agora;
+        // Rotina para piscar o LED Vermelho 5 vezes por segundo.
+        uint64_t tempo_atual = time_us_64();
+        if ((tempo_atual - ultimo_toggle_led) >= LED_BLINK_INTERVAL_US) { //#define LED_BLINK_INTERVAL_US  100000 
+            ultimo_toggle_led = tempo_atual;
             // Inverte o estado do LED vermelho
             gpio_xor_mask(1 << LED_VERMELHO);
         }
-        
+        // Rotina para atualizar o display
         if (atualizar_display) {
             desenho_pio((int *)matriz_numeros[numero_atual], valor_led, pio, sm, r, g, b);
             atualizar_display = false;
