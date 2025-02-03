@@ -25,6 +25,12 @@ volatile double r;
 volatile double g; 
 volatile double b;
 
+// Blink a 5 Hz → 10 toggles por segundo = 100 ms cada toggle
+#define LED_BLINK_INTERVAL_US  100000  
+
+// Armazena o último tempo em que o LED foi toggled
+static uint64_t ultimo_toggle_led = 0;
+
 // Armazena o último tempo em que houve pressionamento detectado
 
 #define DEBOUNCE_DELAY_US  100000
@@ -165,6 +171,7 @@ int main() {
     
     gpio_init(LED_VERMELHO);
     gpio_set_dir(LED_VERMELHO, GPIO_OUT);
+    gpio_put(LED_VERMELHO, 0);
     
     gpio_init(BOTAO_A);
     gpio_set_dir(BOTAO_A, GPIO_IN);
@@ -180,7 +187,18 @@ int main() {
     uint sm = pio_claim_unused_sm(pio, true);
     pio_matrix_program_init(pio, sm, offset, WS2812_PIN);
     
+    // Marca o último toggle do LED como o momento atual
+    ultimo_toggle_led = time_us_64();
+
     while (true) {
+
+        // ----- Blink do LED vermelho a 5 Hz sem delay -----
+        uint64_t agora = time_us_64();
+        if ((agora - ultimo_toggle_led) >= LED_BLINK_INTERVAL_US) {
+            ultimo_toggle_led = agora;
+            // Inverte o estado do LED vermelho
+            gpio_xor_mask(1 << LED_VERMELHO);
+        }
         
         if (atualizar_display) {
             desenho_pio((int *)matriz_numeros[numero_atual], valor_led, pio, sm, r, g, b);
